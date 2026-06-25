@@ -1,0 +1,66 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="PRG_DAQ" Id="{d6b6a462-44be-4421-bef5-5431cb2f9893}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM PRG_DAQ
+VAR
+// --- I/O Data ---
+    aInputData AT %I* : ARRAY[1..GVL_CM_Source.cChannels, 1..GVL_CM_Source.cOversamples] OF DINT;
+
+    fbSource : FB_CMA_Source := (
+        stInitPars := (
+            eTypeCode := eMA_TypeCode_INT32,     
+            nDims := 2,                          
+            aDimSizes := [GVL_CM_Source.cChannels, GVL_CM_Source.cBufferLen] 
+        ),
+        nOwnID := GVL_CM_Source.cSourceID,              
+        aDestIDs := [GVL_CM_Source.cAnalysisID]         
+    );
+	
+	// --- Error Logging ---
+	hrErrorCode : HRESULT;
+    bError      : BOOL;
+    nTotalErrorCount : UDINT;                     
+    aErrorLog        : ARRAY[1..50] OF HRESULT;   
+    nLogIndex        : UDINT := 1;                
+    hrPreviousError  : HRESULT := 0;              
+	
+END_VAR
+
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// --- Data buffer ---
+hrErrorCode := fbSource.Input2D(
+    pDataIn      := ADR(aInputData),          
+    nDataInSize  := SIZEOF(aInputData),       
+    eElementType := eMA_TypeCode_INT32,        
+    nWorkDim0    := 0,                         
+    nWorkDim1    := 1,                         
+    pStartIndex  := 0,                         
+    nOptionPars  := 0
+);
+
+// --- Error Logging ---
+IF FAILED(hrErrorCode) THEN
+    
+    nTotalErrorCount := nTotalErrorCount + 1;
+
+    IF (hrErrorCode <> hrPreviousError) AND (nLogIndex <= 50) THEN
+        aErrorLog[nLogIndex] := hrErrorCode;
+        nLogIndex := nLogIndex + 1; 
+    END_IF
+    
+END_IF
+
+hrPreviousError := hrErrorCode;]]></ST>
+    </Implementation>
+    <LineIds Name="PRG_DAQ">
+      <LineId Id="26" Count="10" />
+      <LineId Id="50" Count="2" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="59" Count="5" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

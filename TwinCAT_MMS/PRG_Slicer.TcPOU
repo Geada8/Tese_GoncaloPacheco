@@ -1,0 +1,56 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="PRG_Slicer" Id="{4be09ede-eab0-4130-a5ee-33c975e31a92}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM PRG_Slicer
+VAR CONSTANT
+    cTargetSamples   : UDINT := 2500; 
+    cIncomingSamples : UDINT := 250;  
+END_VAR
+VAR
+    aWindowBuffer : ARRAY[1..GVL_CM_Source.cChannels, 1..cTargetSamples, 0..1] OF LREAL;
+
+	nActiveBuffer : INT := 0;
+    nStartIndex   : UDINT := 1;
+	nReadyBuffer : INT; 
+    
+    ch, i : UDINT;
+END_VAR
+VAR_INPUT
+        bBufferReady : BOOL := FALSE;
+    END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// --- 2500 samples buffer manager
+IF GVL_CM_Source.bNewDataReady THEN
+    
+    FOR ch := 1 TO GVL_CM_Source.cChannels DO
+        
+        FOR i := 1 TO cIncomingSamples DO
+            aWindowBuffer[ch, (nStartIndex + i - 1),nActiveBuffer] := GVL_CM_Source.aCleanDataLREAL[ch, i];
+        END_FOR
+        
+    END_FOR
+    
+    nStartIndex := nStartIndex + cIncomingSamples;
+
+    IF nStartIndex > cTargetSamples THEN
+        bBufferReady := TRUE;  
+		nReadyBuffer := nActiveBuffer;
+	    nActiveBuffer := 1 - nActiveBuffer; 
+        nStartIndex  := 1;   
+    END_IF
+
+END_IF]]></ST>
+    </Implementation>
+    <LineIds Name="PRG_Slicer">
+      <LineId Id="22" Count="2" />
+      <LineId Id="26" Count="1" />
+      <LineId Id="29" Count="5" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="38" Count="2" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="41" Count="2" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

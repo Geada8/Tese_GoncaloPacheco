@@ -1,0 +1,223 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="PRG_CSVWriter" Id="{059d5bba-1318-4c82-a560-3fa7ba695d64}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM PRG_CSVWriter
+VAR
+    // --- File Handling Blocks ---
+    fbFileOpen   : FB_FileOpen;
+    fbFileWrite  : FB_FileWrite;
+    fbFileClose  : FB_FileClose;
+    
+    // --- State Machine ---
+    hFile        : UINT;
+    
+    // --- File Naming & Labeling ---
+    sDirectory   : STRING := 'C:\Users\ggspa\Desktop\teste wheel\Data2\1.2x_Moving_Normal\';
+    sLabel       : STRING := 'Normal';           
+    nFileIndex   : UDINT := 1;                   
+    sPath        : STRING(255);
+    
+    // --- Data Processing & Chunking ---
+    aWriteBuffer : ARRAY[0..300000] OF BYTE; 
+    nWriteLen    : UDINT;
+    
+    sHeader      : STRING := 'Time,Ch1_X,Ch1_Y,Ch1_Z,Ch2_X,Ch2_Y,Ch2_Z$N';
+    sLine        : STRING(255);
+    
+    nRowIndex    : UDINT;
+    nRowsPerCycle: UDINT := 250;                 
+    i            : UDINT;
+    tSampleTime  : UDINT;                        
+    
+    bExecuteOpen : BOOL;
+    bExecuteWrite: BOOL;
+    bExecuteClose: BOOL;
+	
+	nTargetRows : UDINT; 
+END_VAR
+
+VAR_INPUT
+        nState      : INT := 0;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT MAIN.bIsRecording AND (nState > 0 AND nState < 20) THEN
+    bExecuteClose := TRUE;
+    nState := 20;
+END_IF
+
+CASE nState OF
+    
+    // ==========================================
+    // STATE 0: Idle - Wait for Slicer Data
+    // ==========================================
+    0: 
+        IF PRG_Slicer.bBufferReady THEN 
+
+            IF MAIN.bIsRecording THEN
+                
+                // 1. Build the dynamic filename
+                sPath := CONCAT(sDirectory, 'WheelTest_');
+                sPath := CONCAT(sPath, sLabel);
+                sPath := CONCAT(sPath, '_');
+                sPath := CONCAT(sPath, UDINT_TO_STRING(nFileIndex));
+                sPath := CONCAT(sPath, '.csv');
+                
+                // 2. Reset counters for the new file
+                nWriteLen := 0;
+                nRowIndex := 1;
+                
+                // 3. Move to Open
+                bExecuteOpen := TRUE;
+                PRG_Slicer.bBufferReady := FALSE;
+                nState := 1; 
+                
+            ELSE
+      
+                PRG_Slicer.bBufferReady := FALSE;
+               
+            END_IF
+            
+        END_IF
+        
+    // ==========================================
+    // STATE 1 & 2: Open the CSV File
+    // ==========================================
+    1: 
+        fbFileOpen(sNetId := '192.168.102.131.1.1', sPathName := sPath,
+		nMode := FOPEN_MODEWRITE OR FOPEN_MODETEXT, bExecute := bExecuteOpen);
+        bExecuteOpen := FALSE;
+        nState := 2;
+        
+    2: 
+        fbFileOpen(bExecute := FALSE);
+        IF NOT fbFileOpen.bBusy THEN
+            IF NOT fbFileOpen.bError THEN
+                hFile := fbFileOpen.hFile; 
+                bExecuteWrite := TRUE;
+                nState := 3; 
+            ELSE
+                nState := 99; 
+            END_IF
+        END_IF
+        
+    // ==========================================
+    // STATE 3 & 4: Write the Header Row
+    // ==========================================
+    3: 
+        fbFileWrite(sNetId := '192.168.102.131.1.1', hFile := hFile, pWriteBuff := ADR(sHeader),
+	    cbWriteLen := TO_UDINT(LEN(sHeader)), bExecute := bExecuteWrite);
+        bExecuteWrite := FALSE;
+        nState := 4;
+        
+    4: 
+        fbFileWrite(bExecute := FALSE);
+        IF NOT fbFileWrite.bBusy THEN 
+            nState := 10; 
+        END_IF 
+
+   // ==========================================
+    // STATE 10: Chunked String Processing
+    // ==========================================
+    10: 
+        FOR i := 1 TO nRowsPerCycle DO
+            
+            // -------------------------------------------------------------
+            // PATH A: DISCOVERY MODE (Raw Data - 2500 samples)
+            // -------------------------------------------------------------
+            IF MAIN.eCurrentMode = E_ML_OperatingMode.MODE_DISCOVERY THEN
+                nTargetRows := 2500;
+                
+                tSampleTime := (nRowIndex - 1) * 40; 
+                
+                sLine := CONCAT(UDINT_TO_STRING(tSampleTime), ',');
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_Slicer.aWindowBuffer[1, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, ',');
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_Slicer.aWindowBuffer[2, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, ',');
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_Slicer.aWindowBuffer[3, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, ',');
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_Slicer.aWindowBuffer[4, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, ',');
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_Slicer.aWindowBuffer[5, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, ',');
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_Slicer.aWindowBuffer[6, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, '$N');
+            
+            // -------------------------------------------------------------
+            // PATH B: TRAINING MODE (FFT Data)
+            // -------------------------------------------------------------
+            ELSIF MAIN.eCurrentMode = E_ML_OperatingMode.MODE_TRAIN_EXTRACT THEN
+                nTargetRows := 512; 
+                                                            
+                sLine := CONCAT(UDINT_TO_STRING(nRowIndex), ','); 
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_TF3600_Math.aFftBuffer[1, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, ',');
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_TF3600_Math.aFftBuffer[2, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, ',');
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_TF3600_Math.aFftBuffer[3, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, ',');
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_TF3600_Math.aFftBuffer[4, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, ',');
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_TF3600_Math.aFftBuffer[5, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, ',');
+                sLine := CONCAT(sLine, LREAL_TO_STRING(PRG_TF3600_Math.aFftBuffer[6, nRowIndex, PRG_Slicer.nReadyBuffer])); sLine := CONCAT(sLine, '$N');
+                
+            END_IF
+            
+            MEMCPY(ADR(aWriteBuffer) + nWriteLen, ADR(sLine), INT_TO_UDINT(LEN(sLine)));
+            nWriteLen := nWriteLen + INT_TO_UDINT(LEN(sLine));
+            
+            nRowIndex := nRowIndex + 1;
+            
+            IF nRowIndex > nTargetRows THEN
+                EXIT; 
+            END_IF
+            
+        END_FOR
+        
+        // --- DATA CHECK ---
+        IF nRowIndex > nTargetRows THEN
+            bExecuteWrite := TRUE;
+            nState := 11; 
+        ELSE
+            // Stay in State 10 to process the next data chunk next cycle
+        END_IF
+		
+    // ==========================================
+    // STATE 11 & 12: Execute Data Write
+    // ==========================================
+    11:
+        fbFileWrite(sNetId := '192.168.102.131.1.1', hFile := hFile, pWriteBuff := ADR(aWriteBuffer), cbWriteLen := nWriteLen, bExecute := bExecuteWrite);
+        IF fbFileWrite.bBusy THEN
+            bExecuteWrite := FALSE; 
+            nState := 12;
+        END_IF
+        
+    12: 
+        fbFileWrite(bExecute := FALSE);
+        IF NOT fbFileWrite.bBusy THEN
+            bExecuteClose := TRUE;
+            nState := 20; // Write complete, move to close.
+        END_IF
+
+    // ==========================================
+    // STATE 20 & 21: Close File & Reset
+    // ==========================================
+    20: 
+        fbFileClose(sNetId := '192.168.102.131.1.1', hFile := hFile, bExecute := bExecuteClose); 
+        bExecuteClose := FALSE;
+        nState := 21;
+        
+    21: 
+        fbFileClose(bExecute := FALSE); 
+        IF NOT fbFileClose.bBusy THEN 
+            // Success! Increment the file number for the next time bBufferReady goes high
+            nFileIndex := nFileIndex + 1; 
+            nState := 0; 
+        END_IF
+        
+    // ==========================================
+    // STATE 99: Error Handling
+    // ==========================================
+    99:
+        // Safely force close the file if an error occurs, then return to idle
+        fbFileClose(sNetId := '192.168.102.131.1.1', hFile := hFile, bExecute := TRUE);
+        nState := 0;
+
+END_CASE]]></ST>
+    </Implementation>
+    <LineIds Name="PRG_CSVWriter">
+      <LineId Id="452" Count="172" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

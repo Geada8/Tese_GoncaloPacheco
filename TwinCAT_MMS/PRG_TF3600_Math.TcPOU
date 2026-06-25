@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="PRG_TF3600_Math" Id="{dcba501c-a882-4848-9545-95becc9867c4}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM PRG_TF3600_Math
+VAR_INPUT
+    // Measured shaft speed — set from HMI or encoder; defaults to 1000 RPM
+    fActualRPM : LREAL := 1000.0;
+END_VAR
+
+VAR CONSTANT
+    cN          : UDINT := 2500;   // target samples per window
+    cREF        : LREAL := 1000.0; // reference RPM used during training
+    cFFT_LO     : UDINT := 1;      // first bin kept (skip DC)
+    cFFT_HI     : UDINT := 250;    // last bin kept  (250 bins = 10-2490 Hz)
+    cLF_BINS    : UDINT := 3;      // number of 1x shaft-order bins
+    cALPHA      : LREAL := 11.3;   // fixed alpha exponent
+    cCH         : UDINT := 6;      // number of channels
+    cSPEC_LEN   : UDINT := 250;    // bins per channel after trimming
+END_VAR
+
+VAR
+    // --- Angular resampling ---
+    fResampleRatio  : LREAL;                                              // actual_rpm / ref_rpm
+    nResampledLen   : UDINT;                                              // target length before crop
+    aResampled      : ARRAY[1..6, 0..2999] OF LREAL;                     // resampled signal (max oversized)
+    fIdx            : LREAL;
+    nIdx0, nIdx1    : UDINT;
+    fFrac           : LREAL;
+
+    // --- Hann window ---
+    aHann           : ARRAY[0..2499] OF LREAL;
+    aWindowed       : ARRAY[1..6, 0..2499] OF LREAL;
+    bHannReady      : BOOL := FALSE;
+
+    // --- FFT via TF3600 ---
+    fbFFT           : ARRAY[1..6] OF FB_CMA_MagnitudeSpectrum;
+    aFFTOut         : ARRAY[1..6, 0..1250] OF LREAL;                     // magnitude output per channel
+    aFFTIn          : ARRAY[0..2499] OF LREAL;                           // single-channel input buffer
+
+    // --- Log-magnitude spectrum ---
+    aLogMag         : ARRAY[1..6, 0..249] OF LREAL;                      // log1p(magnitude), bins 1-250
+
+    // --- Speed correction ---
+    fLogR           : LREAL;                                              // log(actual_rpm / ref_rpm)
+
+    // --- Output: flattened feature vector (250 bins x 6 ch = 1500) ---
+    aSpectrum       : ARRAY[0..1499] OF LREAL;
+
+    // --- Loop indices ---
+    ch, i, b        : UDINT;
+    nFlatIdx        : UDINT;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// Only run when a full 2500-sample window is ready
+IF NOT PRG_Slicer.bBufferReady THEN
+    RETURN;
+END_IF
+
+// ── 1. Build Hann window once ─────────────────────────────────────────────
+IF NOT bHannReady THEN
+    FOR i := 0 TO cN - 1 DO
+        aHann[i] := 0.5 * (1.0 - COS(2.0 * LREAL_TO_LREAL(3.14159265358979) * INT_TO_LREAL(i) / INT_TO_LREAL(cN - 1)));
+    END_FOR
+    bHannReady := TRUE;
+END_IF
+
+// ── 2. Angular resampling (linear interpolation) ──────────────────────────
+// Resample from cN samples to round(cN * actual_rpm / ref_rpm), then crop to cN.
+// This aligns one shaft revolution to exactly cN samples regardless of speed.
+fResampleRatio := fActualRPM / cREF;
+nResampledLen  := LREAL_TO_UDINT(LREAL_TO_LREAL(cN) * fResampleRatio + 0.5);
+
+FOR ch := 1 TO cCH DO
+    FOR i := 0 TO nResampledLen - 1 DO
+        // Map output index back to input index
+        fIdx  := INT_TO_LREAL(i) * INT_TO_LREAL(cN - 1) / INT_TO_LREAL(nResampledLen - 1);
+        nIdx0 := LREAL_TO_UDINT(fIdx);
+        nIdx1 := nIdx0 + 1;
+        fFrac := fIdx - INT_TO_LREAL(nIdx0);
+
+        IF nIdx1 >= cN THEN
+            nIdx1 := cN - 1;
+        END_IF
+
+        aResampled[ch, i] := PRG_Slicer.aWindowBuffer[ch, nIdx0 + 1, PRG_Slicer.nReadyBuffer] * (1.0 - fFrac)
+                           + PRG_Slicer.aWindowBuffer[ch, nIdx1 + 1, PRG_Slicer.nReadyBuffer] * fFrac;
+    END_FOR
+END_FOR
+
+// ── 3. Apply Hann window (first cN samples of resampled signal) ───────────
+FOR ch := 1 TO cCH DO
+    FOR i := 0 TO cN - 1 DO
+        IF i < nResampledLen THEN
+            aWindowed[ch, i] := aResampled[ch, i] * aHann[i];
+        ELSE
+            aWindowed[ch, i] := 0.0;
+        END_IF
+    END_FOR
+END_FOR
+
+// ── 4. FFT magnitude via TF3600 FB_CMA_MagnitudeSpectrum ─────────────────
+FOR ch := 1 TO cCH DO
+    // Copy windowed channel into flat input buffer
+    FOR i := 0 TO cN - 1 DO
+        aFFTIn[i] := aWindowed[ch, i];
+    END_FOR
+
+    fbFFT[ch](
+        pDataIn      := ADR(aFFTIn),
+        nDataInSize  := SIZEOF(aFFTIn),
+        pDataOut     := ADR(aFFTOut[ch, 0]),
+        nDataOutSize := SIZEOF(aFFTOut) / cCH,
+        eWindowType  := eMA_WindowType_None,   // window already applied manually
+        bExecute     := TRUE
+    );
+END_FOR
+
+// ── 5. log1p of magnitude, keep bins cFFT_LO..cFFT_HI ───────────────────
+FOR ch := 1 TO cCH DO
+    FOR b := 0 TO cSPEC_LEN - 1 DO
+        aLogMag[ch, b] := LN(1.0 + aFFTOut[ch, b + cFFT_LO]);
+    END_FOR
+END_FOR
+
+// ── 6. Fixed-alpha speed correction ──────────────────────────────────────
+// Normalises amplitude so 1000 RPM and 1200 RPM spectra align.
+// All bins:       L -= 2.0 * log(rpm / ref)
+// First 3 bins:   L -= (alpha - 2.0) * log(rpm / ref)   [extra 1x correction]
+fLogR := LN(fActualRPM / cREF);
+
+FOR ch := 1 TO cCH DO
+    FOR b := 0 TO cSPEC_LEN - 1 DO
+        aLogMag[ch, b] := aLogMag[ch, b] - 2.0 * fLogR;
+    END_FOR
+    FOR b := 0 TO cLF_BINS - 1 DO
+        aLogMag[ch, b] := aLogMag[ch, b] - (cALPHA - 2.0) * fLogR;
+    END_FOR
+END_FOR
+
+// ── 7. Flatten to 1D feature vector (250 bins × 6 channels = 1500) ───────
+// Layout: [ch1_bin0..ch1_bin249, ch2_bin0..ch2_bin249, ..., ch6_bin249]
+nFlatIdx := 0;
+FOR ch := 1 TO cCH DO
+    FOR b := 0 TO cSPEC_LEN - 1 DO
+        aSpectrum[nFlatIdx] := aLogMag[ch, b];
+        nFlatIdx := nFlatIdx + 1;
+    END_FOR
+END_FOR
+
+// Reset buffer flag so Slicer can start collecting the next window
+PRG_Slicer.bBufferReady := FALSE;]]></ST>
+    </Implementation>
+    <LineIds Name="PRG_TF3600_Math">
+      <LineId Id="13" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

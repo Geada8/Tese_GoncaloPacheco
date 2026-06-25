@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <DUT Name="E_ML_OperatingMode" Id="{e03aa970-ef77-43bb-b900-9ef7c010c036}">
+    <Declaration><![CDATA[TYPE E_ML_OperatingMode :
+(
+    MODE_IDLE              := 0,
+    MODE_DISCOVERY         := 10,  // Extract RAW 100ms slices to CSV for Edge Impulse
+    MODE_TRAIN_EXTRACT     := 20,  // Extract TF3600 FFT features to CSV for Python
+    MODE_LIVE_INFERENCE    := 30   // Run live AI via TF3800 (No CSV extraction)
+);
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

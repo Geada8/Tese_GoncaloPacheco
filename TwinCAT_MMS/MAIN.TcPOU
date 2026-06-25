@@ -1,0 +1,103 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="MAIN" Id="{02d537e6-e31c-448f-b977-62ed554441be}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MAIN
+VAR
+    eCurrentMode : E_ML_OperatingMode := MODE_IDLE;
+
+	bMotor1 at %Q* : BOOL; 
+    
+    // HMI Button Triggers
+    bBtnStartRecord : BOOL;
+    bBtnStopRecord  : BOOL;
+    
+    // Internal status flag
+    bIsRecording    : BOOL := FALSE; 
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// 0. HMI BUTTON LOGIC (Start / Stop Latch)
+
+IF bBtnStartRecord THEN
+    bIsRecording := TRUE;
+    bBtnStartRecord := FALSE; 
+END_IF
+
+
+IF bBtnStopRecord OR (eCurrentMode = E_ML_OperatingMode.MODE_IDLE) THEN
+    bIsRecording := FALSE;
+    bBtnStopRecord := FALSE;  
+END_IF
+
+PRG_DataPrep();
+PRG_Slicer();
+PRG_ShuttleMotion();
+
+// 2. STATE MACHINE
+
+CASE eCurrentMode OF
+
+    // ---------------------------------------------------------
+    MODE_IDLE:
+        
+        PRG_CSVWriter.nState := 0;
+
+    // ---------------------------------------------------------
+    MODE_DISCOVERY:
+        // Extract 100ms samples of raw data directly to the hard drive.
+        		
+       	IF bIsRecording OR (PRG_CSVWriter.nState <> 0) THEN
+       
+        PRG_CSVWriter();
+    	END_IF
+        
+
+    // ---------------------------------------------------------
+    MODE_TRAIN_EXTRACT:
+        // Extract pre-processed data to the hard drive.
+        
+        PRG_TF3600_Math();
+        
+        IF bIsRecording THEN
+            PRG_CSVWriter(); 
+        END_IF
+
+    // ---------------------------------------------------------
+    MODE_LIVE_INFERENCE:
+        // No data extraction, run the AI model and classifies data.
+        
+        PRG_TF3600_Math();
+
+        PRG_TF3800_Inference();
+        
+
+END_CASE
+
+// 3. SAFETY RESET
+// =========================================================
+// If we just finished a 100ms slice, reset the flag so the Slicer 
+// can start building the next one on the next PLC cycle.
+//IF PRG_Slicer.bBufferReady THEN
+//   PRG_Slicer.bBufferReady := FALSE;
+//END_IF]]></ST>
+    </Implementation>
+    <LineIds Name="MAIN">
+      <LineId Id="274" Count="10" />
+      <LineId Id="271" Count="0" />
+      <LineId Id="195" Count="0" />
+      <LineId Id="198" Count="1" />
+      <LineId Id="312" Count="0" />
+      <LineId Id="202" Count="7" />
+      <LineId Id="211" Count="5" />
+      <LineId Id="297" Count="2" />
+      <LineId Id="222" Count="1" />
+      <LineId Id="225" Count="4" />
+      <LineId Id="231" Count="1" />
+      <LineId Id="235" Count="7" />
+      <LineId Id="244" Count="0" />
+      <LineId Id="246" Count="2" />
+      <LineId Id="250" Count="1" />
+      <LineId Id="253" Count="6" />
+      <LineId Id="94" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

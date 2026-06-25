@@ -1,0 +1,53 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="PRG_DataPrep" Id="{1f8eebad-f9cb-4e9b-a169-bb5724eadf5a}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM PRG_DataPrep
+VAR
+    // --- TF3600 Sink Block ---
+    fbSink : FB_CMA_Sink := (
+        nOwnID := GVL_CM_Source.cAnalysisID 
+    );
+
+    // --- Local Data Arrays ---
+    aRawDataINT32 : ARRAY[1..GVL_CM_Source.cChannels, 1..GVL_CM_Source.cBufferLen] OF DINT;
+
+    hrErrorCode  : HRESULT;
+    i, j         : UDINT;     
+    fScaleFactor : LREAL := 1.0; 
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// --- Data type conversion ---
+hrErrorCode := fbSink.Output2D(
+    pDataOut      := ADR(aRawDataINT32),
+    nDataOutSize  := SIZEOF(aRawDataINT32),
+    eElementType  := eMA_TypeCode_INT32,
+    nWorkDim0     := 0,
+    nWorkDim1     := 1,
+    nElementsDim0 := 0,  
+    nElementsDim1 := 0,  
+    pStartIndex   := 0,
+    nOptionPars   := 0,
+    bNewResult    => GVL_CM_Source.bNewDataReady  
+);
+
+IF GVL_CM_Source.bNewDataReady THEN
+    FOR i := 1 TO GVL_CM_Source.cChannels DO
+        FOR j := 1 TO GVL_CM_Source.cBufferLen DO
+         
+            GVL_CM_Source.aCleanDataLREAL[i, j] := DINT_TO_LREAL(aRawDataINT32[i, j]) * fScaleFactor;
+            
+        END_FOR   
+    END_FOR
+END_IF]]></ST>
+    </Implementation>
+    <LineIds Name="PRG_DataPrep">
+      <LineId Id="46" Count="12" />
+      <LineId Id="60" Count="1" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="67" Count="1" />
+      <LineId Id="70" Count="2" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
