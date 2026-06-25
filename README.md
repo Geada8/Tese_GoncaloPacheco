@@ -30,8 +30,8 @@ Each data folder is named according to the condition under which it was recorded
 | `1.2x_Normal` | Normal condition, no added mass, static setup, 1200 RPM |
 | `1.2x_Mass1` | Imbalance fault (mass 1), static setup, 1200 RPM |
 | `1.2x_Mass2` | Imbalance fault (mass 2), static setup, 1200 RPM |
-| `1.2x_Mass3` | Imbalance fault (mass 3), static setup, ~1200 RPM |
-| `1.2x_Moving_Normal` | Normal condition, no added mass, lateral movement active, ~1200 RPM |
-| `1.2x_Moving_Mass1` | Imbalance fault (mass 1), lateral movement active, ~1200 RPM |
-| `1.2x_Moving_Mass2` | Imbalance fault (mass 2), lateral movement active, ~1200 RPM |
-| `1.2x_Moving_Mass3` | Imbalance fault (mass 3), lateral movement active, ~1200 RPM |
+| `1.2x_Mass3` | Imbalance fault (mass 3), static setup, 1200 RPM |
+| `1.2x_Moving_Normal` | Normal condition, no added mass, lateral movement active, 1200 RPM |
+| `1.2x_Moving_Mass1` | Imbalance fault (mass 1), lateral movement active, 1200 RPM |
+| `1.2x_Moving_Mass2` | Imbalance fault (mass 2), lateral movement active, 1200 RPM |
+| `1.2x_Moving_Mass3` | Imbalance fault (mass 3), lateral movement active, 1200 RPM |
