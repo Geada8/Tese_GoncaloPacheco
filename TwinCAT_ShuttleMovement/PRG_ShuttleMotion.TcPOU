@@ -1,0 +1,223 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <POU Name="PRG_ShuttleMotion" Id="{de69d45f-c640-429f-8b3f-6551059765c9}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM PRG_ShuttleMotion
+VAR
+    axis            : AXIS_REF;
+    bStart          : BOOL;
+    
+    bSensorHit AT %I* : BOOL;
+    bSensorActive   : BOOL;
+
+    fbPower         : MC_Power;
+    fbHome          : MC_Home;
+    fbMoveVel       : MC_MoveVelocity;
+    fbMoveAbs       : MC_MoveAbsolute; 
+    fbStop          : MC_Stop;
+    fbReset         : MC_Reset;
+
+    bExecMoveVel    : BOOL;
+    bExecMoveAbs    : BOOL; 
+    bExecStop       : BOOL;
+    bExecHome       : BOOL;
+
+    eState          : E_ShuttleState := eINIT;
+    bHomed          : BOOL;
+    bError          : BOOL;
+    nErrorID        : UDINT;
+
+    fVelocity       : LREAL := 300.0;
+    fAcceleration   : LREAL := 2000.0;
+    fDeceleration   : LREAL := 2000.0;
+    fJerk           : LREAL := 20000.0;
+    
+    fEndPosition    : LREAL := 1250.0;
+    fPreSensorPos   : LREAL := 3.0;
+    fTargetPos      : LREAL; 
+    fCreepVelocity  : LREAL := 60.0;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[bSensorActive := NOT bSensorHit;
+
+// --- Always-on: power and reset ---
+fbPower(Axis := axis, Enable := TRUE, Enable_Positive := TRUE, Enable_Negative := TRUE);
+fbReset(Axis := axis, Execute := bError AND NOT bStart);
+
+IF axis.Status.Error AND NOT bError THEN
+    bError := TRUE;
+    nErrorID := axis.Status.ErrorID;
+    eState := eERROR;
+END_IF
+
+// --- 1. State Machine ---
+CASE eState OF
+
+    eINIT:
+        bExecMoveVel := FALSE; bExecMoveAbs := FALSE; bExecStop := FALSE; bExecHome := FALSE;
+        bHomed := FALSE;
+        IF fbPower.Status THEN eState := eIDLE; END_IF
+
+    eIDLE:
+        IF bStart THEN
+            IF NOT bHomed THEN eState := eCRAWL_TO_SENSOR; ELSE eState := eMOVE_TO_END; END_IF
+        END_IF
+
+    // ---------------------------------------------------------
+    // INITIAL STARTUP PHASE (Only runs once)
+    // ---------------------------------------------------------
+    eCRAWL_TO_SENSOR:
+        bExecMoveVel := TRUE;
+        IF bSensorActive THEN
+            bExecMoveVel := FALSE;
+            eState := eSTOPPING_INIT;
+        END_IF
+
+    eSTOPPING_INIT:
+        bExecStop := TRUE;
+        IF fbStop.Done THEN
+            bExecStop := FALSE;
+            eState := eWAIT_CLEAR_STOP_INIT;
+        ELSIF fbStop.Error THEN
+            bExecStop := FALSE;
+            eState := eERROR;
+        END_IF
+
+    eWAIT_CLEAR_STOP_INIT:
+        IF NOT fbStop.Done AND NOT fbStop.Busy THEN
+            eState := eZEROING;
+        END_IF
+
+    eZEROING:
+        bExecHome := TRUE;
+        IF fbHome.Done THEN
+            bExecHome := FALSE;
+            bHomed := TRUE;
+            eState := eWAIT_CLEAR_HOME;
+        END_IF
+
+    eWAIT_CLEAR_HOME:
+        IF NOT fbHome.Done AND NOT fbHome.Busy THEN
+            eState := eMOVE_TO_END;
+        END_IF
+
+    // ---------------------------------------------------------
+    // THE CONTINUOUS PING-PONG LOOP
+    // ---------------------------------------------------------
+    eMOVE_TO_END:
+        fTargetPos := fEndPosition; 
+        bExecMoveAbs := TRUE;
+        
+        IF axis.NcToPlc.ActPos >= (fEndPosition - 0.5) THEN
+            bExecMoveAbs := FALSE; 
+            eState := eSTOPPING_END;
+        ELSIF fbMoveAbs.Error OR fbMoveAbs.CommandAborted THEN
+            bExecMoveAbs := FALSE;
+            eState := eERROR;
+        END_IF
+
+    eSTOPPING_END:
+        bExecStop := TRUE;
+        IF fbStop.Done THEN
+            bExecStop := FALSE; 
+            eState := eWAIT_CLEAR_STOP_END;
+        ELSIF fbStop.Error THEN
+            bExecStop := FALSE;
+            eState := eERROR;
+        END_IF
+
+    eWAIT_CLEAR_STOP_END:
+        IF NOT fbStop.Done AND NOT fbStop.Busy THEN
+            eState := eMOVE_TO_START; 
+        END_IF
+
+    eMOVE_TO_START:
+        fTargetPos := fPreSensorPos; 
+        bExecMoveAbs := TRUE;
+        
+        IF fbMoveAbs.Done THEN
+            bExecMoveAbs := FALSE;
+            eState := eWAIT_CLEAR_START;
+        ELSIF fbMoveAbs.Error OR fbMoveAbs.CommandAborted THEN
+            bExecMoveAbs := FALSE;
+            eState := eERROR;
+        END_IF
+
+    eWAIT_CLEAR_START:
+        IF NOT fbMoveAbs.Done AND NOT fbMoveAbs.Busy THEN
+            eState := eCREEP_TO_SENSOR;
+        END_IF
+
+    eCREEP_TO_SENSOR:
+        bExecMoveVel := TRUE; 
+        IF bSensorActive THEN
+            bExecMoveVel := FALSE;
+            eState := eSTOPPING_LOOP;
+        END_IF
+
+    eSTOPPING_LOOP:
+        bExecStop := TRUE;
+        IF fbStop.Done THEN
+            bExecStop := FALSE;
+            eState := eWAIT_CLEAR_STOP_LOOP;
+        ELSIF fbStop.Error THEN
+            bExecStop := FALSE;
+            eState := eERROR;
+        END_IF
+
+    eWAIT_CLEAR_STOP_LOOP:
+        IF NOT fbStop.Done AND NOT fbStop.Busy THEN
+            eState := eMOVE_TO_END;
+        END_IF
+
+    eERROR:
+        bExecMoveVel := FALSE; bExecMoveAbs := FALSE; bExecStop := FALSE; bExecHome := FALSE;bHomed := FALSE;
+        IF NOT bError THEN eState := eIDLE; END_IF
+
+END_CASE
+
+// --- 2. Master Stop ---
+IF NOT bStart THEN
+    bExecMoveVel := FALSE; bExecMoveAbs := FALSE; bExecHome := FALSE;
+    
+    IF eState <> eINIT AND eState <> eIDLE AND eState <> eERROR THEN
+        bExecStop := TRUE;
+        IF fbStop.Done THEN
+            bExecStop := FALSE;
+            eState := eIDLE;
+        END_IF
+    END_IF
+END_IF
+
+// --- 3. Execution ---
+fbMoveVel(Axis := axis, Execute := bExecMoveVel, Velocity := fCreepVelocity, Acceleration := fAcceleration,
+Deceleration := fDeceleration, Jerk := fJerk, Direction := MC_Negative_Direction);
+fbMoveAbs(Axis := axis, Execute := bExecMoveAbs, Position := fTargetPos, Velocity := fVelocity, Acceleration := fAcceleration,
+Deceleration := fDeceleration, Jerk := fJerk);
+fbStop(Axis := axis, Execute := bExecStop, Deceleration := 10000.0);
+fbHome(Axis := axis, Execute := bExecHome, Position := 0.0, HomingMode := MC_Direct);
+
+
+
+
+
+]]></ST>
+    </Implementation>
+    <LineIds Name="PRG_ShuttleMotion">
+      <LineId Id="942" Count="45" />
+      <LineId Id="989" Count="15" />
+      <LineId Id="1008" Count="0" />
+      <LineId Id="1090" Count="6" />
+      <LineId Id="1099" Count="18" />
+      <LineId Id="1119" Count="2" />
+      <LineId Id="1026" Count="35" />
+      <LineId Id="1063" Count="24" />
+      <LineId Id="1163" Count="0" />
+      <LineId Id="1088" Count="0" />
+      <LineId Id="1164" Count="0" />
+      <LineId Id="1089" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="1158" Count="4" />
+      <LineId Id="1157" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

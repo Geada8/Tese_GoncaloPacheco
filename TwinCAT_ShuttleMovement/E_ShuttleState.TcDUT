@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
+  <DUT Name="E_ShuttleState" Id="{93693a84-c095-4726-bf9f-b204ecdcaf94}">
+    <Declaration><![CDATA[TYPE E_ShuttleState :
+(
+    eINIT,
+    eIDLE,
+    eCRAWL_TO_SENSOR,
+    eSTOPPING_INIT,
+    eWAIT_CLEAR_STOP_INIT,
+    eZEROING,
+    eWAIT_CLEAR_HOME,
+    
+    eMOVE_TO_END,
+    eSTOPPING_END,         
+    eWAIT_CLEAR_STOP_END,  
+    
+    eMOVE_TO_START,
+    eWAIT_CLEAR_START,
+    eCREEP_TO_SENSOR,
+    eSTOPPING_LOOP,
+    eWAIT_CLEAR_STOP_LOOP,
+    
+    eERROR
+);
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>
