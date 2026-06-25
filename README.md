@@ -6,8 +6,8 @@ This repository contains the data acquisition code, machine learning models, and
 
 | Folder | Description |
 |---|---|
-| `Data_rig1/` | Vibration data collected from test rig setup 1 |
-| `Data_rig2/` | Vibration data collected from test rig setup 2 |
+| `Data_rig1/` | Vibration data collected from test rig 1 |
+| `Data_rig2/` | Vibration data collected from test rig 2 |
 | `ML/` | Machine learning algorithms used for fault classification |
 | `TwinCAT_MMS/` | TwinCAT PLC code for data acquisition and the monitoring system implementation |
 | `TwinCAT_ShuttleMovement/` | TwinCAT PLC code for lateral shuttle motion control |
