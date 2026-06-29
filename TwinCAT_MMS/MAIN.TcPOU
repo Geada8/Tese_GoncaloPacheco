@@ -15,7 +15,9 @@ VAR
     bIsRecording    : BOOL := FALSE; 
 END_VAR]]></Declaration>
     <Implementation>
-      <ST><![CDATA[// 0. HMI BUTTON LOGIC (Start / Stop Latch)
+      <ST><![CDATA[
+
+// 0. HMI BUTTON LOGIC
 
 IF bBtnStartRecord THEN
     bIsRecording := TRUE;
