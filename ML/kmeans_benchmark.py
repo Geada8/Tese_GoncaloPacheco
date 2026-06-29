@@ -1,11 +1,6 @@
 """
-K-Means benchmark — binary (normal vs fault) and 4-class.
-Loads preprocessed data from Data_processed\.
+K-Means benchmark — binary and 4-class.
 
-K-Means is an unsupervised clustering algorithm; to use it for classification
-the clusters are labelled by a majority vote over the training labels assigned
-to each cluster, and a test sample is classified by the label of its nearest
-cluster centroid.
 """
 
 import numpy as np, time
