@@ -40,7 +40,8 @@ VAR_INPUT
         nState      : INT := 0;
 END_VAR]]></Declaration>
     <Implementation>
-      <ST><![CDATA[IF NOT MAIN.bIsRecording AND (nState > 0 AND nState < 20) THEN
+      <ST><![CDATA[
+IF NOT MAIN.bIsRecording AND (nState > 0 AND nState < 20) THEN
     bExecuteClose := TRUE;
     nState := 20;
 END_IF
