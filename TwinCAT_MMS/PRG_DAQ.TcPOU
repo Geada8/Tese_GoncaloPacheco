@@ -3,7 +3,7 @@
   <POU Name="PRG_DAQ" Id="{d6b6a462-44be-4421-bef5-5431cb2f9893}" SpecialFunc="None">
     <Declaration><![CDATA[PROGRAM PRG_DAQ
 VAR
-// --- I/O Data ---
+	// --- I/O Data ---
     aInputData AT %I* : ARRAY[1..GVL_CM_Source.cChannels, 1..GVL_CM_Source.cOversamples] OF DINT;
 
     fbSource : FB_CMA_Source := (
@@ -28,8 +28,9 @@ END_VAR
 
 ]]></Declaration>
     <Implementation>
-      <ST><![CDATA[// --- Data buffer ---
-hrErrorCode := fbSource.Input2D(
+      <ST><![CDATA[
+// --- Data buffer ---
+	hrErrorCode := fbSource.Input2D(
     pDataIn      := ADR(aInputData),          
     nDataInSize  := SIZEOF(aInputData),       
     eElementType := eMA_TypeCode_INT32,        
