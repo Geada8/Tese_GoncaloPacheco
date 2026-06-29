@@ -200,7 +200,6 @@ CASE nState OF
     21: 
         fbFileClose(bExecute := FALSE); 
         IF NOT fbFileClose.bBusy THEN 
-            // Success! Increment the file number for the next time bBufferReady goes high
             nFileIndex := nFileIndex + 1; 
             nState := 0; 
         END_IF
@@ -209,7 +208,6 @@ CASE nState OF
     // STATE 99: Error Handling
     // ==========================================
     99:
-        // Safely force close the file if an error occurs, then return to idle
         fbFileClose(sNetId := '192.168.102.131.1.1', hFile := hFile, bExecute := TRUE);
         nState := 0;
 
