@@ -62,24 +62,22 @@ model.add(Dense(classes, name='y_pred', activation='softmax'))
 # END OF ARCHITECTURE
 # =====================================================================
 
-# this controls the learning rate
 opt = Adam(learning_rate=LEARNING_RATE, beta_1=0.9, beta_2=0.999)
 
-# DEFINE THE EARLY STOPPING CALLBACK
+#  EARLY STOPPING CALLBACK
 early_stopping = EarlyStopping(
-    monitor='val_loss',         # Metric to evaluate the "best" epoch (usually val_loss or val_accuracy)
-    patience=30,                # How many epochs to wait for improvement before stopping entirely
-    restore_best_weights=True   # REVERTS model to the best epoch's weights at the end
+    monitor='val_loss',         #
+    patience=30,                
+    restore_best_weights=True   
 )
 
-# Ensure callbacks list exists (if it isn't defined earlier in your script)
 if 'callbacks' not in locals():
     callbacks = []
 
 callbacks.append(BatchLoggerCallback(BATCH_SIZE, train_sample_count, epochs=EPOCHS, ensure_determinism=ENSURE_DETERMINISM))
-callbacks.append(early_stopping) # ADD EARLY STOPPING TO YOUR CALLBACKS
+callbacks.append(early_stopping) 
 
-# train the neural network
+# Neural Network training
 model.compile(loss='categorical_crossentropy', optimizer=opt, metrics=["accuracy"])
 model.fit(train_dataset, epochs=EPOCHS, validation_data=validation_dataset, verbose=2, callbacks=callbacks)
 
