@@ -16,8 +16,8 @@ VAR
     fScaleFactor : LREAL := 1.0; 
 END_VAR]]></Declaration>
     <Implementation>
-      <ST><![CDATA[// --- Data type conversion ---
-hrErrorCode := fbSink.Output2D(
+      <ST><![CDATA[
+    hrErrorCode := fbSink.Output2D(
     pDataOut      := ADR(aRawDataINT32),
     nDataOutSize  := SIZEOF(aRawDataINT32),
     eElementType  := eMA_TypeCode_INT32,
