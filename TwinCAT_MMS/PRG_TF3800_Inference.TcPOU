@@ -32,7 +32,8 @@ VAR
     nMaxIdx         : INT;
 END_VAR]]></Declaration>
     <Implementation>
-      <ST><![CDATA[// ── 1. Load model ───────────────────────────────────────────
+      <ST><![CDATA[
+// ── 1. Load model ───────────────────────────────────────────
 IF NOT bModelLoaded THEN
     fbInference(
         sNetworkPath := cModelPath,
