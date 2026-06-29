@@ -1,7 +1,8 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.15">
   <POU Name="PRG_ShuttleMotion" Id="{de69d45f-c640-429f-8b3f-6551059765c9}" SpecialFunc="None">
-    <Declaration><![CDATA[PROGRAM PRG_ShuttleMotion
+    <Declaration><![CDATA[
+PROGRAM PRG_ShuttleMotion
 VAR
     axis            : AXIS_REF;
     bStart          : BOOL;
@@ -37,7 +38,8 @@ VAR
     fCreepVelocity  : LREAL := 60.0;
 END_VAR]]></Declaration>
     <Implementation>
-      <ST><![CDATA[bSensorActive := NOT bSensorHit;
+      <ST><![CDATA[
+bSensorActive := NOT bSensorHit;
 
 // --- Always-on: power and reset ---
 fbPower(Axis := axis, Enable := TRUE, Enable_Positive := TRUE, Enable_Negative := TRUE);
@@ -63,7 +65,7 @@ CASE eState OF
         END_IF
 
     // ---------------------------------------------------------
-    // INITIAL STARTUP PHASE (Only runs once)
+    // INITIAL STARTUP PHASE 
     // ---------------------------------------------------------
     eCRAWL_TO_SENSOR:
         bExecMoveVel := TRUE;
@@ -101,7 +103,7 @@ CASE eState OF
         END_IF
 
     // ---------------------------------------------------------
-    // THE CONTINUOUS PING-PONG LOOP
+    // PING-PONG LOOP
     // ---------------------------------------------------------
     eMOVE_TO_END:
         fTargetPos := fEndPosition; 
