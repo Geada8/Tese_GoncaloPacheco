@@ -1,6 +1,6 @@
 """
-Random Forest benchmark — binary (normal vs fault) and 4-class.
-Loads preprocessed data from Data_processed\ (saved by kmeans_anomaly.py).
+Random Forest benchmark — binary and 4-class.
+
 """
 
 import numpy as np, time
