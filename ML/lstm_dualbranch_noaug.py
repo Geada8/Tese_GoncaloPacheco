@@ -1,7 +1,6 @@
 """
-LSTM dual-branch (from final_benchmark.py) 4-class cross-speed benchmark.
-NO augmentation, 80/20 split — fair comparison with cnn_dualbranch_benchmark.py.
-Train: 80% of 1000 RPM. Test (blind): 1200 RPM.
+LSTM dual-branch 4-class cross-speed benchmark.
+
 """
 
 import numpy as np, os, glob, time
