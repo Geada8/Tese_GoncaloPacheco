@@ -1,6 +1,5 @@
 """
-Dual-branch CNN (from final_benchmark.py) 4-class benchmark.
-Uses fixed-alpha=11.3 FFT preprocessing.
+Dual-branch CNN 4-class benchmark.
 Test A: same speed (1000 RPM 80/20 split)
 Test B: cross-speed (train 1000 RPM, test 1.2x 1200 RPM)
 """
@@ -184,12 +183,12 @@ run("4-CLASS SAME SPEED (1000 RPM)",
     std_fn(X_all[tr_idx]), y_all[tr_idx],
     std_fn(X_all[te_idx]), y_all[te_idx])
 
-# Test B: cross-speed, full training set (val = 1.2x test — not blind)
+# Test B: cross-speed,
 run("4-CLASS CROSS-SPEED full train (train 1000 RPM, test 1200 RPM)",
     std_fn(X_all), y_all,
     std_fn(X_te_12), y_te_12)
 
-# Test C: cross-speed, 80/20 split, no augmentation (blind test, fair comparison)
+# Test C: cross-speed, 80/20 split, no augmentation 
 run("4-CLASS CROSS-SPEED 80/20 no-aug (train 1000 RPM, test 1200 RPM)",
     std_fn(X_all[tr_idx]), y_all[tr_idx],
     std_fn(X_te_12), y_te_12)
