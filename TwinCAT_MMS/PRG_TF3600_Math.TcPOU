@@ -3,26 +3,25 @@
   <POU Name="PRG_TF3600_Math" Id="{dcba501c-a882-4848-9545-95becc9867c4}" SpecialFunc="None">
     <Declaration><![CDATA[PROGRAM PRG_TF3600_Math
 VAR_INPUT
-    // Measured shaft speed — set from HMI or encoder; defaults to 1000 RPM
     fActualRPM : LREAL := 1000.0;
 END_VAR
 
 VAR CONSTANT
-    cN          : UDINT := 2500;   // target samples per window
-    cREF        : LREAL := 1000.0; // reference RPM used during training
-    cFFT_LO     : UDINT := 1;      // first bin kept (skip DC)
-    cFFT_HI     : UDINT := 250;    // last bin kept  (250 bins = 10-2490 Hz)
-    cLF_BINS    : UDINT := 3;      // number of 1x shaft-order bins
-    cALPHA      : LREAL := 11.3;   // fixed alpha exponent
-    cCH         : UDINT := 6;      // number of channels
-    cSPEC_LEN   : UDINT := 250;    // bins per channel after trimming
+    cN          : UDINT := 2500;  
+    cREF        : LREAL := 1000.0; 
+    cFFT_LO     : UDINT := 1;      
+    cFFT_HI     : UDINT := 250;    
+    cLF_BINS    : UDINT := 3;      
+    cALPHA      : LREAL := 11.3;   
+    cCH         : UDINT := 6;     
+    cSPEC_LEN   : UDINT := 250;    
 END_VAR
 
 VAR
     // --- Angular resampling ---
-    fResampleRatio  : LREAL;                                              // actual_rpm / ref_rpm
-    nResampledLen   : UDINT;                                              // target length before crop
-    aResampled      : ARRAY[1..6, 0..2999] OF LREAL;                     // resampled signal (max oversized)
+    fResampleRatio  : LREAL;                                             
+    nResampledLen   : UDINT;                                             
+    aResampled      : ARRAY[1..6, 0..2999] OF LREAL;                    
     fIdx            : LREAL;
     nIdx0, nIdx1    : UDINT;
     fFrac           : LREAL;
@@ -34,16 +33,16 @@ VAR
 
     // --- FFT via TF3600 ---
     fbFFT           : ARRAY[1..6] OF FB_CMA_MagnitudeSpectrum;
-    aFFTOut         : ARRAY[1..6, 0..1250] OF LREAL;                     // magnitude output per channel
-    aFFTIn          : ARRAY[0..2499] OF LREAL;                           // single-channel input buffer
+    aFFTOut         : ARRAY[1..6, 0..1250] OF LREAL;                  
+    aFFTIn          : ARRAY[0..2499] OF LREAL;                    
 
     // --- Log-magnitude spectrum ---
-    aLogMag         : ARRAY[1..6, 0..249] OF LREAL;                      // log1p(magnitude), bins 1-250
+    aLogMag         : ARRAY[1..6, 0..249] OF LREAL;                    
 
     // --- Speed correction ---
-    fLogR           : LREAL;                                              // log(actual_rpm / ref_rpm)
+    fLogR           : LREAL;                                             
 
-    // --- Output: flattened feature vector (250 bins x 6 ch = 1500) ---
+    // --- Output ---
     aSpectrum       : ARRAY[0..1499] OF LREAL;
 
     // --- Loop indices ---
@@ -56,7 +55,7 @@ IF NOT PRG_Slicer.bBufferReady THEN
     RETURN;
 END_IF
 
-// ── 1. Build Hann window once ─────────────────────────────────────────────
+// ── 1. Hann window ─────────────────────────────────────────────
 IF NOT bHannReady THEN
     FOR i := 0 TO cN - 1 DO
         aHann[i] := 0.5 * (1.0 - COS(2.0 * LREAL_TO_LREAL(3.14159265358979) * INT_TO_LREAL(i) / INT_TO_LREAL(cN - 1)));
@@ -64,9 +63,7 @@ IF NOT bHannReady THEN
     bHannReady := TRUE;
 END_IF
 
-// ── 2. Angular resampling (linear interpolation) ──────────────────────────
-// Resample from cN samples to round(cN * actual_rpm / ref_rpm), then crop to cN.
-// This aligns one shaft revolution to exactly cN samples regardless of speed.
+// ── 2. Angular resampling  ──────────────────────────
 fResampleRatio := fActualRPM / cREF;
 nResampledLen  := LREAL_TO_UDINT(LREAL_TO_LREAL(cN) * fResampleRatio + 0.5);
 
@@ -87,7 +84,7 @@ FOR ch := 1 TO cCH DO
     END_FOR
 END_FOR
 
-// ── 3. Apply Hann window (first cN samples of resampled signal) ───────────
+// ── 3. Hann window ───────────
 FOR ch := 1 TO cCH DO
     FOR i := 0 TO cN - 1 DO
         IF i < nResampledLen THEN
@@ -98,9 +95,8 @@ FOR ch := 1 TO cCH DO
     END_FOR
 END_FOR
 
-// ── 4. FFT magnitude via TF3600 FB_CMA_MagnitudeSpectrum ─────────────────
+// ── 4. FFT magnitude ─────────────────
 FOR ch := 1 TO cCH DO
-    // Copy windowed channel into flat input buffer
     FOR i := 0 TO cN - 1 DO
         aFFTIn[i] := aWindowed[ch, i];
     END_FOR
@@ -115,7 +111,7 @@ FOR ch := 1 TO cCH DO
     );
 END_FOR
 
-// ── 5. log1p of magnitude, keep bins cFFT_LO..cFFT_HI ───────────────────
+// ── 5. log1p of magnitude ───────────────────
 FOR ch := 1 TO cCH DO
     FOR b := 0 TO cSPEC_LEN - 1 DO
         aLogMag[ch, b] := LN(1.0 + aFFTOut[ch, b + cFFT_LO]);
@@ -123,9 +119,6 @@ FOR ch := 1 TO cCH DO
 END_FOR
 
 // ── 6. Fixed-alpha speed correction ──────────────────────────────────────
-// Normalises amplitude so 1000 RPM and 1200 RPM spectra align.
-// All bins:       L -= 2.0 * log(rpm / ref)
-// First 3 bins:   L -= (alpha - 2.0) * log(rpm / ref)   [extra 1x correction]
 fLogR := LN(fActualRPM / cREF);
 
 FOR ch := 1 TO cCH DO
@@ -137,8 +130,7 @@ FOR ch := 1 TO cCH DO
     END_FOR
 END_FOR
 
-// ── 7. Flatten to 1D feature vector (250 bins × 6 channels = 1500) ───────
-// Layout: [ch1_bin0..ch1_bin249, ch2_bin0..ch2_bin249, ..., ch6_bin249]
+// ── 7. Flatten ───────
 nFlatIdx := 0;
 FOR ch := 1 TO cCH DO
     FOR b := 0 TO cSPEC_LEN - 1 DO
@@ -147,7 +139,7 @@ FOR ch := 1 TO cCH DO
     END_FOR
 END_FOR
 
-// Reset buffer flag so Slicer can start collecting the next window
+
 PRG_Slicer.bBufferReady := FALSE;]]></ST>
     </Implementation>
     <LineIds Name="PRG_TF3600_Math">
