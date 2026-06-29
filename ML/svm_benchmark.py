@@ -1,6 +1,6 @@
 """
-SVM benchmark — binary (normal vs fault) and 4-class.
-Loads preprocessed data from Data_processed\.
+SVM benchmark — binary  and 4-class.
+
 """
 
 import numpy as np, time
