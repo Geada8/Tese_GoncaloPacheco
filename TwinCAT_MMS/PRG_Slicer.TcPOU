@@ -19,7 +19,7 @@ VAR_INPUT
         bBufferReady : BOOL := FALSE;
     END_VAR]]></Declaration>
     <Implementation>
-      <ST><![CDATA[// --- 2500 samples buffer manager
+      <ST><![CDATA[
 IF GVL_CM_Source.bNewDataReady THEN
     
     FOR ch := 1 TO GVL_CM_Source.cChannels DO
