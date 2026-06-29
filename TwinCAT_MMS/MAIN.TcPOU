@@ -72,13 +72,6 @@ CASE eCurrentMode OF
 
 END_CASE
 
-// 3. SAFETY RESET
-// =========================================================
-// If we just finished a 100ms slice, reset the flag so the Slicer 
-// can start building the next one on the next PLC cycle.
-//IF PRG_Slicer.bBufferReady THEN
-//   PRG_Slicer.bBufferReady := FALSE;
-//END_IF]]></ST>
     </Implementation>
     <LineIds Name="MAIN">
       <LineId Id="274" Count="10" />
