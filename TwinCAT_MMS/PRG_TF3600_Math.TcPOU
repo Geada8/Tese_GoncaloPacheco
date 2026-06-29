@@ -50,7 +50,7 @@ VAR
     nFlatIdx        : UDINT;
 END_VAR]]></Declaration>
     <Implementation>
-      <ST><![CDATA[// Only run when a full 2500-sample window is ready
+      <ST><![CDATA[
 IF NOT PRG_Slicer.bBufferReady THEN
     RETURN;
 END_IF
