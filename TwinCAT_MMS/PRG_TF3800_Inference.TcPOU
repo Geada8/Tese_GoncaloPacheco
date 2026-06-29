@@ -3,8 +3,6 @@
   <POU Name="PRG_TF3800_Inference" Id="{a0c8589b-90e5-42c6-bf74-d1e081e0a917}" SpecialFunc="None">
     <Declaration><![CDATA[PROGRAM PRG_TF3800_Inference
 VAR CONSTANT
-    // ONNX model exported from ML\CNN_dualbranch.py
-    // Convert with: python -m tf2onnx.convert --saved-model <model> --output cnn_dualbranch.onnx
     cModelPath  : STRING := 'C:\TwinCAT\3.1\Boot\Plc\Models\cnn_dualbranch.onnx';
     cNClasses   : INT    := 4;
     cInputLen   : UDINT  := 1500;   // 250 bins x 6 channels (flattened)
@@ -14,15 +12,14 @@ VAR
     // --- TF3800 inference block ---
     fbInference     : FB_TF3800_ONNX;
 
-    // --- Input tensor: flattened spectrum from PRG_TF3600_Math ---
+    // --- Input tensor ---
     // Shape: [1, 1500] — batch size 1, 1500 features
     aInputTensor    : ARRAY[0..1499] OF LREAL;
 
-    // --- Output tensor: softmax probabilities for 4 classes ---
+    // --- Output tensor ---
     // Shape: [1, 4] — [normal, mass1, mass2, mass3]
     aOutputTensor   : ARRAY[0..3] OF LREAL;
 
-    // --- Control flags ---
     bModelLoaded    : BOOL   := FALSE;
     bExecute        : BOOL   := FALSE;
     bBusy           : BOOL;
@@ -30,13 +27,12 @@ VAR
     bError          : BOOL;
     hrError         : HRESULT;
 
-    // --- Internal ---
     i               : INT;
     fMaxProb        : LREAL;
     nMaxIdx         : INT;
 END_VAR]]></Declaration>
     <Implementation>
-      <ST><![CDATA[// ── 1. Load model on first call ───────────────────────────────────────────
+      <ST><![CDATA[// ── 1. Load model ───────────────────────────────────────────
 IF NOT bModelLoaded THEN
     fbInference(
         sNetworkPath := cModelPath,
@@ -51,16 +47,13 @@ IF NOT bModelLoaded THEN
     RETURN;
 END_IF
 
-// ── 2. Wait for preprocessed spectrum from PRG_TF3600_Math ───────────────
-// PRG_TF3600_Math resets bBufferReady after writing aSpectrum.
-// We trigger inference on the cycle immediately after preprocessing completes.
-// aSpectrum is valid from the previous PRG_TF3600_Math execution.
+// ── 2. Buffer ───────────────
+
 IF bDone OR bError THEN
     bExecute := FALSE;
     bDone    := FALSE;
 END_IF
 
-// Copy preprocessed feature vector into input tensor
 FOR i := 0 TO UDINT_TO_INT(cInputLen) - 1 DO
     aInputTensor[i] := PRG_TF3600_Math.aSpectrum[i];
 END_FOR
@@ -82,7 +75,6 @@ fbInference(
     hrErrorCode   => hrError
 );
 
-// ── 4. Parse result when inference completes ──────────────────────────────
 IF bDone THEN
     // Find class with highest softmax probability (argmax)
     fMaxProb := -1.0;
@@ -97,7 +89,7 @@ IF bDone THEN
 
     GVL_CM_Source.nPredictedClass := nMaxIdx;
     GVL_CM_Source.fConfidence     := fMaxProb;
-    GVL_CM_Source.bFaultDetected  := (nMaxIdx <> 0);  // any non-normal class = fault
+    GVL_CM_Source.bFaultDetected  := (nMaxIdx <> 0);  
 END_IF]]></ST>
     </Implementation>
     <LineIds Name="PRG_TF3800_Inference">
